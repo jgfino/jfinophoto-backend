@@ -101,7 +101,6 @@ export const buildDatabase = async () => {
   // Create redis client
   const client = createClient();
   await client.connect();
-  await client.flushAll();
 
   // Drive starting folder
   const origin = process.env.DRIVE_PARENT_FOLDER!;
@@ -146,11 +145,19 @@ export const buildDatabase = async () => {
     concertIDs.push(folder.id!);
   });
 
-  // Keep track of concert IDs for retrieval later
-  await client.set("concerts", JSON.stringify(concertIDs));
-
   // Level 4: Get the images
   const level4 = await getLevel(level3.folders.map((folder) => folder.id!));
+
+  // Get porfolio ids
+  const portfolioFolder = process.env.DRIVE_PORTFOLIO_FOLDER!;
+  const portfolioShortcuts = await getLevel([portfolioFolder]);
+
+  const portfolioIDs = portfolioShortcuts.shortcuts.map(
+    (sc) => sc.shortcutDetails!.targetId
+  );
+
+  // Clear db
+  await client.flushAll();
 
   // Add artist info to the images and images to concerts
   await Promise.all(
@@ -168,12 +175,8 @@ export const buildDatabase = async () => {
     })
   );
 
-  const portfolioFolder = process.env.DRIVE_PORTFOLIO_FOLDER!;
-  const portfolioShortcuts = await getLevel([portfolioFolder]);
-
-  const portfolioIDs = portfolioShortcuts.shortcuts.map(
-    (sc) => sc.shortcutDetails!.targetId
-  );
+  // Keep track of concert IDs for retrieval later
+  await client.set("concerts", JSON.stringify(concertIDs));
 
   // Add portfolio images
   await client.set("portfolio", JSON.stringify(portfolioIDs));
