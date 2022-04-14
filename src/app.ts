@@ -9,7 +9,6 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT;
-const address = process.env.ADDRESS;
 
 app.use(cors());
 app.use(express.json());
@@ -31,7 +30,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 app.listen(port, () => {
   console.log("Building database");
   buildDatabase().then(() =>
-    console.log(`Express is listening at ${address}:${port}`)
+    console.log(`Express is listening on port ${port}`)
   );
 });
 

@@ -92,6 +92,7 @@ export const getConcert = catchAsync(async (req, res, next) => {
  */
 export const sendEmail = catchAsync(async (req, res, next) => {
   const { firstName, lastName, subject, email, message } = req.body;
+  console.log(req.body);
 
   if (
     !(firstName && lastName && subject && email && message) ||
@@ -110,7 +111,7 @@ export const sendEmail = catchAsync(async (req, res, next) => {
   };
 
   const mailer = nodemailer.createTransport({
-    service: "gmail",
+    service: "Gmail",
     auth: {
       user: process.env.GMAIL_ADDRESS,
       pass: process.env.GMAIL_PASSWORD,
