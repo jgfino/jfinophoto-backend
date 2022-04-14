@@ -13,7 +13,7 @@ const port = process.env.PORT;
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/v1", routes);
+app.use("/", routes);
 
 // Route not found
 app.all("*", (req, res, next) => {
