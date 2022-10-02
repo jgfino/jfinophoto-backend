@@ -78,7 +78,7 @@ export const getConcert = catchAsync(async (req, res, next) => {
   await Promise.all(
     photoIDs.map(async (id) => {
       const photo: ConcertImage = JSON.parse((await client.get(id))!);
-      photo.url = fixThumbnailUrl(photo.url, 1280);
+      photo.url = fixThumbnailUrl(photo.url, 1600);
       photos.push(photo.url);
     })
   );
