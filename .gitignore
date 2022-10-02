@@ -3,3 +3,4 @@ node_modules
 credentials.json
 .DS_store
 run-backend.sh
+nohup.out
