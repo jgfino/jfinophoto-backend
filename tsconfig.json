@@ -9,7 +9,7 @@
     "resolveJsonModule": true,
     "strict": true,
     "strictFunctionTypes": false,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
   },
   "lib": ["es2015"]
 }
