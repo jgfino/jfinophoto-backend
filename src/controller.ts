@@ -24,7 +24,7 @@ export const getPortfolio = catchAsync(async (req, res, next) => {
   await Promise.all(
     imageIDs.map(async (id) => {
       const image: ConcertImage = JSON.parse((await client.get(id))!);
-      image.url = fixThumbnailUrl(image.url, 1280);
+      image.url = fixThumbnailUrl(image.url, 1600);
       images.push(image);
     })
   );
