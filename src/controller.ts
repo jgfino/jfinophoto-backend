@@ -2,6 +2,7 @@ import { catchAsync } from "./error/catchAsync";
 import { createClient } from "redis";
 import nodemailer from "nodemailer";
 import { ConcertDetails, ConcertImage, ConcertPreview } from "./types";
+import { RedisDetails } from "./api/googleDrive";
 
 /**
  * Fix thumbnail url sizing
@@ -44,11 +45,12 @@ export const getConcerts = catchAsync(async (_, res) => {
 
   await Promise.all(
     concertIDs.map(async (id) => {
-      const concert: ConcertDetails = JSON.parse((await client.get(id))!);
+      const concert: RedisDetails = JSON.parse((await client.get(id))!);
       const coverImageStored =
         concert.photos[Math.floor(Math.random() * concert.photos.length)];
-      const coverImage = JSON.parse((await client.get(coverImageStored.id))!);
+      const coverImage = JSON.parse((await client.get(coverImageStored))!);
       coverImage.url = fixThumbnailUrl(coverImage.url, 500);
+
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { photos, ...preview } = concert;
       concerts.push({ ...preview, coverImage: coverImage.url ?? null });
@@ -71,21 +73,25 @@ export const getConcert = catchAsync(async (req, res) => {
   await client.connect();
 
   const concertID = req.params.id;
-  const concert: ConcertDetails = JSON.parse((await client.get(concertID))!);
+  const concert: RedisDetails = JSON.parse((await client.get(concertID))!);
 
   const photoIDs = concert.photos;
   const photos: ConcertImage[] = [];
 
   await Promise.all(
     photoIDs.map(async (img) => {
-      const photo: ConcertImage = JSON.parse((await client.get(img.id))!);
+      const photo: ConcertImage = JSON.parse((await client.get(img))!);
       photo.url = fixThumbnailUrl(photo.url, 1600);
       photos.push(photo);
     })
   );
 
-  concert.photos = photos;
-  res.status(200).send(concert);
+  const concertDetails: ConcertDetails = {
+    ...concert,
+    photos,
+  };
+
+  res.status(200).send(concertDetails);
 });
 
 /**

@@ -23,7 +23,7 @@ const VenueTranslations = {
   BMH: "Brighton Music Hall",
 };
 
-interface RedisDetails extends ConcertBase {
+export interface RedisDetails extends ConcertBase {
   photos: string[];
 }
 
