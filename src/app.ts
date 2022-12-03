@@ -1,4 +1,4 @@
-import express, { NextFunction, Request, Response } from "express";
+import express, { Request, Response } from "express";
 import routes from "./routes";
 import dotenv from "dotenv";
 import cron from "node-cron";
@@ -16,12 +16,12 @@ app.use(express.json());
 app.use("/", routes);
 
 // Route not found
-app.all("*", (req, res, next) => {
+app.all("*", (_, res) => {
   res.status(404).send("Route not found");
 });
 
 // Generic error wrapping
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, req: Request, res: Response) => {
   console.log(err);
   res.status(500).send("An internal server error occured");
 });

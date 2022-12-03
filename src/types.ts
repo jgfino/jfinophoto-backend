@@ -1,4 +1,4 @@
-interface ConcertBase {
+export interface ConcertBase {
   date: string;
   venue: string;
   id: string;
@@ -10,7 +10,7 @@ export interface ConcertPreview extends ConcertBase {
 }
 
 export interface ConcertDetails extends ConcertBase {
-  photos: string[];
+  photos: ConcertImage[];
 }
 
 export interface ConcertImage extends ConcertBase {

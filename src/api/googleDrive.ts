@@ -1,7 +1,7 @@
 import { drive_v3, google } from "googleapis";
 import credentials from "../credentials.json";
 import { createClient } from "redis";
-import { ConcertDetails } from "../types";
+import { ConcertBase } from "../types";
 
 const scopes = ["https://www.googleapis.com/auth/drive.readonly"];
 
@@ -22,6 +22,10 @@ const VenueTranslations = {
   HOB: "House of Blues",
   BMH: "Brighton Music Hall",
 };
+
+interface RedisDetails extends ConcertBase {
+  photos: string[];
+}
 
 /**
  * Translate a venue into its full name from an abbreviation. If no
@@ -133,7 +137,7 @@ export const buildDatabase = async () => {
   // Create actual concerts from the folder names. This is where we begin storing in our db
   const concertIDs: string[] = [];
 
-  const tempConcerts: { [key: string]: ConcertDetails } = {};
+  const tempConcerts: { [key: string]: RedisDetails } = {};
 
   level3.folders.forEach((folder) => {
     tempConcerts[folder.id!] = {

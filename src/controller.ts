@@ -15,7 +15,7 @@ const fixThumbnailUrl = (url: string, size: number) => {
 /**
  * Get all images in my portfolio
  */
-export const getPortfolio = catchAsync(async (req, res, next) => {
+export const getPortfolio = catchAsync(async (_, res) => {
   const client = createClient();
   await client.connect();
 
@@ -35,7 +35,7 @@ export const getPortfolio = catchAsync(async (req, res, next) => {
 /**
  * Get all concerts in date order, each with a random cover image
  */
-export const getConcerts = catchAsync(async (req, res, next) => {
+export const getConcerts = catchAsync(async (_, res) => {
   const client = createClient();
   await client.connect();
 
@@ -45,10 +45,11 @@ export const getConcerts = catchAsync(async (req, res, next) => {
   await Promise.all(
     concertIDs.map(async (id) => {
       const concert: ConcertDetails = JSON.parse((await client.get(id))!);
-      const coverImageID =
+      const coverImageStored =
         concert.photos[Math.floor(Math.random() * concert.photos.length)];
-      const coverImage = JSON.parse((await client.get(coverImageID))!);
+      const coverImage = JSON.parse((await client.get(coverImageStored.id))!);
       coverImage.url = fixThumbnailUrl(coverImage.url, 500);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { photos, ...preview } = concert;
       concerts.push({ ...preview, coverImage: coverImage.url ?? null });
     })
@@ -65,7 +66,7 @@ export const getConcerts = catchAsync(async (req, res, next) => {
 /**
  * Get a specific concert and its photos
  */
-export const getConcert = catchAsync(async (req, res, next) => {
+export const getConcert = catchAsync(async (req, res) => {
   const client = createClient();
   await client.connect();
 
@@ -73,13 +74,13 @@ export const getConcert = catchAsync(async (req, res, next) => {
   const concert: ConcertDetails = JSON.parse((await client.get(concertID))!);
 
   const photoIDs = concert.photos;
-  const photos: string[] = [];
+  const photos: ConcertImage[] = [];
 
   await Promise.all(
-    photoIDs.map(async (id) => {
-      const photo: ConcertImage = JSON.parse((await client.get(id))!);
+    photoIDs.map(async (img) => {
+      const photo: ConcertImage = JSON.parse((await client.get(img.id))!);
       photo.url = fixThumbnailUrl(photo.url, 1600);
-      photos.push(photo.url);
+      photos.push(photo);
     })
   );
 
@@ -90,7 +91,7 @@ export const getConcert = catchAsync(async (req, res, next) => {
 /**
  * Send an email from the contact form
  */
-export const sendEmail = catchAsync(async (req, res, next) => {
+export const sendEmail = catchAsync(async (req, res) => {
   const { firstName, lastName, subject, email, message } = req.body;
   console.log(req.body);
 
