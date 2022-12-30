@@ -19,8 +19,9 @@ const VenueTranslations = {
   Paradise: "Paradise Rock Club",
   "Middle East": "Middle East",
   Sinclair: "The Sinclair",
-  HOB: "House of Blues",
+  HOB: "House of Blues Boston",
   BMH: "Brighton Music Hall",
+  MGM: "MGM Music Hall at Fenway",
 };
 
 export interface RedisDetails extends ConcertBase {
