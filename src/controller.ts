@@ -5,6 +5,23 @@ import { ConcertDetails, ConcertImage, ConcertPreview } from "./types";
 import { RedisDetails } from "./api/googleDrive";
 
 /**
+ * Shuffle an array
+ * @param arr The array to shuffle
+ * @returns The shuffled array
+ */
+export function shuffle<T>(arr: T[]) {
+  const array = [...arr];
+  let i = array.length - 1;
+  for (i; i > 0; i--) {
+    const j = Math.floor(Math.random() * i);
+    const temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+  return array;
+}
+
+/**
  * Fix thumbnail url sizing
  * @param url The url to fix
  * @returns The fixed url
@@ -33,7 +50,7 @@ export const getPortfolio = catchAsync(async (_, res) => {
     })
   );
 
-  res.status(200).send(images);
+  res.status(200).send(shuffle(images));
 });
 
 /**
