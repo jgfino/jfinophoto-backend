@@ -99,6 +99,17 @@ const getLevel = async (parents: string[]) => {
   return { photos, folders, shortcuts };
 };
 
+const getPhotoFromID = async (id: string) => {
+  const fields = "thumbnailLink";
+  const res = (
+    await drive.files.get({
+      fileId: id,
+      fields,
+    })
+  ).data as drive_v3.Schema$File;
+  return res;
+};
+
 /**
  * Build the redis database from our Google Drive folder structure
  */
@@ -157,15 +168,15 @@ export const buildDatabase = async () => {
   const portfolioFolder = process.env.DRIVE_PORTFOLIO_FOLDER!;
   const portfolioShortcuts = await getLevel([portfolioFolder]);
 
-  const portfolioIDs = portfolioShortcuts.shortcuts.map(
-    (sc) => sc.shortcutDetails!.targetId
-  );
+  const portfolioIDs = portfolioShortcuts.shortcuts.map((sc) => {
+    return sc.shortcutDetails!.targetId;
+  });
 
   // Clear db
   await client.flushAll();
 
   // Add artist info to the images and images to concerts
-  await Promise.all(
+  await Promise.all([
     level4.photos.map(async (photo) => {
       tempConcerts[photo.parents![0]].photos.push(photo.id!);
       const concert = tempConcerts[photo.parents![0]];
@@ -177,8 +188,22 @@ export const buildDatabase = async () => {
         date: concert.date,
       };
       await client.set(photo.id!, JSON.stringify(photoInfo));
-    })
-  );
+    }),
+    level4.shortcuts.map(async (shortcut) => {
+      const photoID = shortcut.shortcutDetails!.targetId!;
+      tempConcerts[shortcut.parents![0]].photos.push(photoID);
+      const concert = tempConcerts[shortcut.parents![0]];
+      const photo = await getPhotoFromID(photoID);
+      const photoInfo = {
+        id: photoID,
+        url: photo.thumbnailLink,
+        artist: concert.artist,
+        venue: concert.venue,
+        date: concert.date,
+      };
+      await client.set(photoID, JSON.stringify(photoInfo));
+    }),
+  ]);
 
   // Keep track of concert IDs for retrieval later
   await client.set("concerts", JSON.stringify(concertIDs));

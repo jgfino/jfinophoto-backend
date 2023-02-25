@@ -69,6 +69,9 @@ export const getConcerts = catchAsync(async (_, res) => {
       const coverImageStored =
         concert.photos[Math.floor(Math.random() * concert.photos.length)];
       const coverImage = JSON.parse((await client.get(coverImageStored))!);
+      if (coverImage === null) {
+        return;
+      }
       coverImage.url = fixThumbnailUrl(coverImage.url, 500);
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
