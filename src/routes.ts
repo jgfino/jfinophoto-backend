@@ -5,6 +5,8 @@ const router = express.Router();
 
 router.get("/portfolio", actions.getPortfolio);
 
+router.get("/portraits", actions.getPortraits);
+
 router.get("/concerts", actions.getConcerts);
 
 router.get("/concerts/:id", actions.getConcert);

@@ -31,13 +31,15 @@ const fixThumbnailUrl = (url: string, size: number) => {
 };
 
 /**
- * Get all images in my portfolio
+ * Get all images in a redis cache based on key and format as concert images
+ * @param key The redis cache key
+ * @returns The formatted images
  */
-export const getPortfolio = catchAsync(async (_, res) => {
+const getRedisImages = async (key: string) => {
   const client = createClient();
   await client.connect();
 
-  const imageIDs: string[] = JSON.parse((await client.get("portfolio"))!);
+  const imageIDs: string[] = JSON.parse((await client.get(key))!);
   const images: ConcertImage[] = [];
   await Promise.all(
     imageIDs.map(async (id) => {
@@ -50,6 +52,22 @@ export const getPortfolio = catchAsync(async (_, res) => {
     })
   );
 
+  return images;
+};
+
+/**
+ * Get all images in my portfolio
+ */
+export const getPortfolio = catchAsync(async (_, res) => {
+  const images = await getRedisImages("portfolio");
+  res.status(200).send(shuffle(images));
+});
+
+/**
+ * Get all images in my portrait portfolio
+ */
+export const getPortraits = catchAsync(async (_, res) => {
+  const images = await getRedisImages("portraits");
   res.status(200).send(shuffle(images));
 });
 
