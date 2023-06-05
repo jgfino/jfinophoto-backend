@@ -72,6 +72,14 @@ export const getPortraits = catchAsync(async (_, res) => {
 });
 
 /**
+ * Get all images in the festival portfolio
+ */
+export const getFestivals = catchAsync(async (_, res) => {
+  const images = await getRedisImages("festivals");
+  res.status(200).send(shuffle(images));
+});
+
+/**
  * Get all concerts in date order, each with a random cover image
  */
 export const getConcerts = catchAsync(async (_, res) => {

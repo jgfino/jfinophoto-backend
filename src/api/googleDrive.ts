@@ -124,7 +124,10 @@ export const buildDatabase = async () => {
   // Level 1: Years, excluding portfolio folder
   const level1 = await getLevel([origin]);
   level1.folders = level1.folders.filter(
-    (file) => file.name != "Portfolio" && file.name !== "Portfolio-Portraits"
+    (file) =>
+      file.name != "Portfolio" &&
+      file.name !== "Portfolio-Portraits" &&
+      file.name !== "Portfolio-Festival"
   );
 
   // Level 2: Shows
@@ -173,11 +176,18 @@ export const buildDatabase = async () => {
   const portraitFolder = process.env.DRIVE_PORTRAIT_FOLDER!;
   const portraitShortcuts = await getLevel([portraitFolder]);
 
+  const festivalFolder = process.env.DRIVE_FESTIVAL_FOLDER!;
+  const festivalShortcuts = await getLevel([festivalFolder]);
+
   const portfolioIDs = portfolioShortcuts.shortcuts.map((sc) => {
     return sc.shortcutDetails!.targetId;
   });
 
   const portraitIDs = portraitShortcuts.shortcuts.map((sc) => {
+    return sc.shortcutDetails!.targetId;
+  });
+
+  const festivalIDs = festivalShortcuts.shortcuts.map((sc) => {
     return sc.shortcutDetails!.targetId;
   });
 
@@ -220,6 +230,7 @@ export const buildDatabase = async () => {
   // Add portfolio images
   await client.set("portfolio", JSON.stringify(portfolioIDs));
   await client.set("portraits", JSON.stringify(portraitIDs));
+  await client.set("festivals", JSON.stringify(festivalIDs));
 
   // Add finalized concerts
   await Promise.all(

@@ -7,6 +7,8 @@ router.get("/portfolio", actions.getPortfolio);
 
 router.get("/portraits", actions.getPortraits);
 
+router.get("/festivals", actions.getFestivals);
+
 router.get("/concerts", actions.getConcerts);
 
 router.get("/concerts/:id", actions.getConcert);
