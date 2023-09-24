@@ -1,8 +1,8 @@
 import { catchAsync } from "./error/catchAsync";
 import { createClient } from "redis";
 import nodemailer from "nodemailer";
-import { ConcertDetails, ConcertImage, ConcertPreview } from "./types";
-import { RedisDetails } from "./api/googleDrive";
+import { ConcertImage } from "./types";
+import { getGallery } from "./api/googleDrive";
 
 /**
  * Shuffle an array
@@ -52,19 +52,37 @@ const getRedisImages = async (key: string) => {
     })
   );
 
+  await client.disconnect();
+
   return images;
 };
 
 /**
- * Get all images in my portfolio
+ * Get all concerts in a redis cache based on key and format as concert objects
+ * @param key The redis cache key
+ * @returns The formatted concerts
  */
-export const getPortfolio = catchAsync(async (_, res) => {
-  const images = await getRedisImages("portfolio");
+const getRedisConcerts = async (key: string) => {
+  const client = createClient();
+  await client.connect();
+
+  const concerts = JSON.parse((await client.get(key))!);
+
+  await client.disconnect();
+
+  return concerts;
+};
+
+/**
+ * Get all images in the portfolio
+ */
+export const getConcerts = catchAsync(async (_, res) => {
+  const images = await getRedisImages("concerts");
   res.status(200).send(shuffle(images));
 });
 
 /**
- * Get all images in my portrait portfolio
+ * Get all images in the portrait portfolio
  */
 export const getPortraits = catchAsync(async (_, res) => {
   const images = await getRedisImages("portraits");
@@ -80,66 +98,30 @@ export const getFestivals = catchAsync(async (_, res) => {
 });
 
 /**
- * Get all concerts in date order, each with a random cover image
+ * Get all concerts in date order
  */
-export const getConcerts = catchAsync(async (_, res) => {
-  const client = createClient();
-  await client.connect();
-
-  const concertIDs: string[] = JSON.parse((await client.get("concerts"))!);
-  const concerts: ConcertPreview[] = [];
-
-  await Promise.all(
-    concertIDs.map(async (id) => {
-      const concert: RedisDetails = JSON.parse((await client.get(id))!);
-      const coverImageStored =
-        concert.photos[Math.floor(Math.random() * concert.photos.length)];
-      const coverImage = JSON.parse((await client.get(coverImageStored))!);
-      if (coverImage === null) {
-        return;
-      }
-      coverImage.url = fixThumbnailUrl(coverImage.url, 500);
-
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { photos, ...preview } = concert;
-      concerts.push({ ...preview, coverImage: coverImage.url ?? null });
-    })
-  );
-
-  // Sort concerts chronologically
-  concerts.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-
+export const getConcertGalleries = catchAsync(async (_, res) => {
+  const concerts = await getRedisConcerts("concertGalleries");
   res.status(200).send(concerts);
 });
 
 /**
- * Get a specific concert and its photos
+ * Get all festival galleries
  */
-export const getConcert = catchAsync(async (req, res) => {
-  const client = createClient();
-  await client.connect();
+export const getFestivalGalleries = catchAsync(async (_, res) => {
+  const galleries = await getRedisConcerts("festivalGalleries");
+  res.status(200).send(galleries);
+});
 
-  const concertID = req.params.id;
-  const concert: RedisDetails = JSON.parse((await client.get(concertID))!);
-
-  const photoIDs = concert.photos;
-  const photos: ConcertImage[] = [];
-
-  await Promise.all(
-    photoIDs.map(async (img) => {
-      const photo: ConcertImage = JSON.parse((await client.get(img))!);
-      photo.url = fixThumbnailUrl(photo.url, 1600);
-      photos.push(photo);
-    })
-  );
-
-  const concertDetails: ConcertDetails = {
-    ...concert,
-    photos,
-  };
-
+/**
+ * Get a specific concert or festival and its photos
+ */
+export const getPhotos = catchAsync(async (req, res) => {
+  const concertId = req.params.concertId ?? req.params.festId;
+  const isFest = req.params.festId !== undefined;
+  const artistId = req.params.artistId;
+  const concertDetails = await getGallery(concertId, artistId, isFest);
+  concertDetails.photos = shuffle(concertDetails.photos); // shuffle photos
   res.status(200).send(concertDetails);
 });
 

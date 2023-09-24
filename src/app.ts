@@ -33,18 +33,3 @@ app.listen(port, () => {
     console.log(`Express is listening on port ${port}`)
   );
 });
-
-/**
- * Rebuild the database every hour
- */
-cron.schedule("0 * * * *", async () => {
-  try {
-    console.log("Rebuilding database");
-    await buildDatabase();
-    console.log("Successfully rebuilt database");
-  } catch (e) {
-    console.log(
-      "There was an error generating the Google Drive database: " + e
-    );
-  }
-});

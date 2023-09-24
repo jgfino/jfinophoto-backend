@@ -1,19 +1,16 @@
-export interface ConcertBase {
+export interface Concert {
   date: string;
   venue: string;
   id: string;
   artist: string;
+  artistId?: string;
 }
 
-export interface ConcertPreview extends ConcertBase {
-  coverImage: string;
-}
-
-export interface ConcertDetails extends ConcertBase {
+export interface ConcertWithPhotos extends Concert {
   photos: ConcertImage[];
 }
 
-export interface ConcertImage extends ConcertBase {
+export interface ConcertImage extends Concert {
   url: string;
 }
 

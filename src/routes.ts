@@ -3,15 +3,25 @@ import express from "express";
 
 const router = express.Router();
 
-router.get("/portfolio", actions.getPortfolio);
+// Portfolio (in-memory, public) routes
+
+router.get("/live", actions.getConcerts);
 
 router.get("/portraits", actions.getPortraits);
 
 router.get("/festivals", actions.getFestivals);
 
-router.get("/concerts", actions.getConcerts);
+// "Hidden" routes to display all photos on demand
 
-router.get("/concerts/:id", actions.getConcert);
+router.get("/galleries/festivals", actions.getFestivalGalleries);
+
+router.get("/galleries/festivals/:festId/:artistId", actions.getPhotos);
+
+router.get("/galleries/concerts", actions.getConcertGalleries);
+
+router.get("/galleries/concerts/:concertId/:artistId", actions.getPhotos);
+
+// Other pages
 
 router.post("/contact", actions.sendEmail);
 

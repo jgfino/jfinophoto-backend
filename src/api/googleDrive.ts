@@ -1,7 +1,7 @@
 import { drive_v3, google } from "googleapis";
 import credentials from "../credentials.json";
 import { createClient } from "redis";
-import { ConcertBase } from "../types";
+import { Concert, ConcertImage, ConcertWithPhotos } from "../types";
 
 const scopes = ["https://www.googleapis.com/auth/drive.readonly"];
 
@@ -17,16 +17,13 @@ const drive = google.drive({ version: "v3", auth });
 // Translations for venues from how they are stored in Drive
 const VenueTranslations = {
   Paradise: "Paradise Rock Club",
-  "Middle East": "Middle East",
   Sinclair: "The Sinclair",
   HOB: "House of Blues Boston",
   BMH: "Brighton Music Hall",
   MGM: "MGM Music Hall at Fenway",
+  BNL: "Big Night Live",
+  MSG: "Madison Square Garden",
 };
-
-export interface RedisDetails extends ConcertBase {
-  photos: string[];
-}
 
 /**
  * Translate a venue into its full name from an abbreviation. If no
@@ -43,21 +40,105 @@ const translateVenue = (v: string) => {
 };
 
 /**
- * Get all of the folders, images, and shortcuts with the given parent IDs
- * @param parents The parent folder IDs at this level to search
- * @returns The folders, shortcuts, and images at the level of the given parents
+ * Get the photos in a gallery
  */
-const getLevel = async (parents: string[]) => {
-  let s = `(mimeType='application/vnd.google-apps.folder' OR mimeType='application/vnd.google-apps.shortcut' OR mimeType='image/jpeg')`;
-  if (parents.length == 0) {
-    return { photos: [], folders: [], shortcuts: [] };
-  }
-  s += ` AND (`;
-  parents.forEach((parent) => {
-    s += `'${parent}' IN parents OR`;
+export const getGallery = async (
+  concertFolderId: string,
+  artistFolderId: string,
+  isFest: boolean
+): Promise<ConcertWithPhotos> => {
+  const concertFolder = await drive.files.get({
+    fileId: concertFolderId,
+    fields: "name",
   });
-  s = s.substring(0, s.length - 3);
-  s += `)`;
+
+  const artistFolder = await drive.files.get({
+    fileId: artistFolderId,
+    fields: "name",
+  });
+
+  const folderName = concertFolder.data.name!;
+
+  const split = folderName.split(" | ");
+  const date = split[0];
+  const artistPart = split[1];
+  const venue = translateVenue(split[2].trim());
+
+  const artist = isFest
+    ? `${artistFolder.data.name!} - ${artistPart}`
+    : artistFolder.data.name!;
+
+  const drivePhotos = (await getLevel(artistFolderId)).photos;
+  const photos: ConcertImage[] = drivePhotos.map((p) => ({
+    id: p.id!,
+    url: p.thumbnailLink!,
+    artist: artist,
+    venue: venue,
+    date: new Date(date).toLocaleString("en-US", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }),
+  }));
+  return {
+    date,
+    venue,
+    artist,
+    id: concertFolderId,
+    photos,
+  };
+};
+
+/**
+ * Get the galleries associated with a given folder
+ */
+const getGalleries = async (folder: string): Promise<Concert[]> => {
+  const { folders } = await getLevel(folder); // years
+  const concerts: drive_v3.Schema$File[] = [];
+
+  // concerts
+  for (const folder of folders) {
+    const { folders: f } = await getLevel(folder.id!);
+    concerts.push(...f);
+  }
+
+  const details: Concert[] = [];
+
+  const isFestival = folder === process.env.DRIVE_FESTIVAL_FOLDER!;
+
+  // concerts
+  for (const concert of concerts) {
+    const split = concert.name!.split(" | ");
+    const date = split[0];
+    const festName = split[1];
+    const location = translateVenue(split[2].trim());
+
+    const artistFolders = (await getLevel(concert.id!)).folders!;
+    for (const artistFolder of artistFolders) {
+      details.push({
+        id: concert.id!,
+        artistId: artistFolder.id!,
+        artist: isFestival
+          ? `${artistFolder.name} - ${festName}`
+          : artistFolder.name!,
+        date: date,
+        venue: location,
+      });
+    }
+  }
+
+  return details.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+};
+
+/**
+ * Get all of the folders, images, and shortcuts with the given parent IDs
+ */
+const getLevel = async (parent: string) => {
+  let s = `(mimeType='application/vnd.google-apps.folder' OR mimeType='application/vnd.google-apps.shortcut' OR mimeType='image/jpeg')`;
+  s += ` AND ('${parent}' IN parents)`;
+
   const fields =
     "files/mimeType,files/id,files/thumbnailLink,files/name,files/parents,files/shortcutDetails,nextPageToken";
 
@@ -99,143 +180,106 @@ const getLevel = async (parents: string[]) => {
   return { photos, folders, shortcuts };
 };
 
-const getPhotoFromID = async (id: string) => {
-  const fields = "thumbnailLink";
-  const res = (
-    await drive.files.get({
-      fileId: id,
-      fields,
+/**
+ * Get concert info based on a single image's folder structure
+ */
+const mapConcertFolder = async (folder: drive_v3.Schema$File[]) => {
+  return await Promise.all(
+    folder.map(async (sc) => {
+      const originalFileId = sc.shortcutDetails!.targetId;
+      const originalFile = await drive.files.get({
+        fileId: originalFileId,
+        fields: "parents,thumbnailLink",
+      });
+      const artistFolderId = originalFile.data.parents![0];
+      const artistFolder = await drive.files.get({
+        fileId: artistFolderId,
+        fields: "parents,name",
+      });
+      const concertFolderId = artistFolder.data.parents![0];
+      const concertFolder = await drive.files.get({
+        fileId: concertFolderId,
+        fields: "name",
+      });
+
+      const split = concertFolder.data.name!.split(" | ");
+      const date = split[0];
+      const artist = artistFolder.data.name!;
+      const venue = translateVenue(split[2].trim());
+
+      const photoInfo: ConcertImage = {
+        id: originalFileId!,
+        url: originalFile.data.thumbnailLink!,
+        artist: artist,
+        venue: venue,
+        date: new Date(date).toLocaleString("en-US", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        }),
+      };
+
+      return photoInfo;
     })
-  ).data as drive_v3.Schema$File;
-  return res;
+  );
 };
 
 /**
  * Build the redis database from our Google Drive folder structure
+ *
+ * This stores portfolio photos in redis. Individual concert galleries are
+ * fetched on demand from the Google Drive API to prevent the redis database
+ * from getting too large.
  */
 export const buildDatabase = async () => {
   // Create redis client
   const client = createClient();
   await client.connect();
-
-  // Drive starting folder
-  const origin = process.env.DRIVE_PARENT_FOLDER!;
-
-  // Level 1: Years, excluding portfolio folder
-  const level1 = await getLevel([origin]);
-  level1.folders = level1.folders.filter(
-    (file) =>
-      file.name != "Portfolio" &&
-      file.name !== "Portfolio-Portraits" &&
-      file.name !== "Portfolio-Festival"
-  );
-
-  // Level 2: Shows
-  const level2 = await getLevel(level1.folders.map((folder) => folder.id!));
-
-  // Extract the dates and venues from the names, keep track
-  const dates: { [key: string]: { date: string; venue: string } } = {};
-
-  level2.folders.forEach((folder) => {
-    const components = folder.name!.split("|");
-    dates[folder.id!] = {
-      date: new Date(components[0]).toLocaleDateString("en-US", {
-        month: "long",
-        day: "2-digit",
-        year: "numeric",
-      }),
-      venue: translateVenue(components[2].trim()),
-    };
-  });
-
-  // Level 3: Get the individual artists from the concert
-  const level3 = await getLevel(level2.folders.map((folder) => folder.id!));
-
-  // Create actual concerts from the folder names. This is where we begin storing in our db
-  const concertIDs: string[] = [];
-
-  const tempConcerts: { [key: string]: RedisDetails } = {};
-
-  level3.folders.forEach((folder) => {
-    tempConcerts[folder.id!] = {
-      ...dates[folder.parents![0]],
-      id: folder.id!,
-      artist: folder.name!,
-      photos: [],
-    };
-    concertIDs.push(folder.id!);
-  });
-
-  // Level 4: Get the images
-  const level4 = await getLevel(level3.folders.map((folder) => folder.id!));
-
-  // Get porfolio ids
-  const portfolioFolder = process.env.DRIVE_PORTFOLIO_FOLDER!;
-  const portfolioShortcuts = await getLevel([portfolioFolder]);
-
-  const portraitFolder = process.env.DRIVE_PORTRAIT_FOLDER!;
-  const portraitShortcuts = await getLevel([portraitFolder]);
-
-  const festivalFolder = process.env.DRIVE_FESTIVAL_FOLDER!;
-  const festivalShortcuts = await getLevel([festivalFolder]);
-
-  const portfolioIDs = portfolioShortcuts.shortcuts.map((sc) => {
-    return sc.shortcutDetails!.targetId;
-  });
-
-  const portraitIDs = portraitShortcuts.shortcuts.map((sc) => {
-    return sc.shortcutDetails!.targetId;
-  });
-
-  const festivalIDs = festivalShortcuts.shortcuts.map((sc) => {
-    return sc.shortcutDetails!.targetId;
-  });
-
   // Clear db
   await client.flushAll();
 
-  // Add artist info to the images and images to concerts
-  await Promise.all([
-    level4.photos.map(async (photo) => {
-      tempConcerts[photo.parents![0]].photos.push(photo.id!);
-      const concert = tempConcerts[photo.parents![0]];
-      const photoInfo = {
-        id: photo.id,
-        url: photo.thumbnailLink,
-        artist: concert.artist,
-        venue: concert.venue,
-        date: concert.date,
-      };
-      await client.set(photo.id!, JSON.stringify(photoInfo));
-    }),
-    level4.shortcuts.map(async (shortcut) => {
-      const photoID = shortcut.shortcutDetails!.targetId!;
-      tempConcerts[shortcut.parents![0]].photos.push(photoID);
-      const concert = tempConcerts[shortcut.parents![0]];
-      const photo = await getPhotoFromID(photoID);
-      const photoInfo = {
-        id: photoID,
-        url: photo.thumbnailLink,
-        artist: concert.artist,
-        venue: concert.venue,
-        date: concert.date,
-      };
-      await client.set(photoID, JSON.stringify(photoInfo));
-    }),
-  ]);
+  const portfolioFolder = process.env.DRIVE_PORTFOLIO_CONCERT_FOLDER!;
+  const portfolioShortcuts = (await getLevel(portfolioFolder)).shortcuts;
 
-  // Keep track of concert IDs for retrieval later
-  await client.set("concerts", JSON.stringify(concertIDs));
+  const portraitFolder = process.env.DRIVE_PORTFOLIO_PORTRAIT_FOLDER!;
+  const portraitShortcuts = (await getLevel(portraitFolder)).shortcuts;
 
-  // Add portfolio images
-  await client.set("portfolio", JSON.stringify(portfolioIDs));
-  await client.set("portraits", JSON.stringify(portraitIDs));
-  await client.set("festivals", JSON.stringify(festivalIDs));
+  const festivalFolder = process.env.DRIVE_FESTIVAL_FOLDER!;
+  const festivalShortcuts = (await getLevel(festivalFolder)).shortcuts;
 
-  // Add finalized concerts
-  await Promise.all(
-    Object.keys(tempConcerts).map(async (key) => {
-      await client.set(key, JSON.stringify(tempConcerts[key]));
-    })
+  const concertMapped = await mapConcertFolder(portfolioShortcuts);
+  const portraitMapped = await mapConcertFolder(portraitShortcuts);
+  const festivalMapped = await mapConcertFolder(festivalShortcuts);
+
+  // Keep just the metadata for the galleries, not the photos
+  const concertGalleries = await getGalleries(
+    process.env.DRIVE_CONCERT_FOLDER!
   );
+
+  const festivalGalleries = await getGalleries(
+    process.env.DRIVE_FESTIVAL_FOLDER!
+  );
+
+  // Set all image ids in redis
+  [...concertMapped, ...portraitMapped, ...festivalMapped].forEach(
+    async (photo) => {
+      await client.set(photo.id, JSON.stringify(photo));
+    }
+  );
+
+  // Set folder mappings
+  await client.set("concerts", JSON.stringify(concertMapped.map((c) => c.id)));
+  await client.set(
+    "portraits",
+    JSON.stringify(portraitMapped.map((c) => c.id))
+  );
+  await client.set(
+    "festivals",
+    JSON.stringify(festivalMapped.map((c) => c.id))
+  );
+
+  // Set gallery mappings
+  await client.set("concertGalleries", JSON.stringify(concertGalleries));
+
+  await client.set("festivalGalleries", JSON.stringify(festivalGalleries));
 };
