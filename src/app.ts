@@ -33,3 +33,9 @@ app.listen(port, () => {
     console.log(`Express is listening on port ${port}`)
   );
 });
+
+// once per hour
+cron.schedule("0 * * * *", () => {
+  console.log("Building database");
+  buildDatabase();
+});
